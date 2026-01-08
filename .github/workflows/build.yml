@@ -116,11 +116,34 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 'a42af01b72c28a8e1d7b48107b33e4f286a55ef6'  # 2024.11.16
+          vcpkgGitCommitId: '67e34200c5689460eaff00c3c1e62b9dab46b76a'  # 2025.01.03 (latest)
 
-      - name: Install dependencies
+      - name: Install dependencies (with retry)
+        shell: pwsh
         run: |
-          vcpkg install wxwidgets:x64-windows-static boost-regex:x64-windows-static hunspell:x64-windows-static
+          $maxRetries = 3
+          $retryCount = 0
+          $success = $false
+
+          while (-not $success -and $retryCount -lt $maxRetries) {
+            $retryCount++
+            Write-Host "Attempt $retryCount of $maxRetries"
+
+            try {
+              vcpkg install wxwidgets:x64-windows-static boost-regex:x64-windows-static hunspell:x64-windows-static
+              $success = $true
+            } catch {
+              Write-Host "Attempt $retryCount failed: $_"
+              if ($retryCount -lt $maxRetries) {
+                Write-Host "Waiting 30 seconds before retry..."
+                Start-Sleep -Seconds 30
+              }
+            }
+          }
+
+          if (-not $success) {
+            throw "Failed to install dependencies after $maxRetries attempts"
+          }
 
       - name: Configure CMake
         run: |
