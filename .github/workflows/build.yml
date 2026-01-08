@@ -148,7 +148,7 @@ jobs:
             Write-Host "Attempt $retryCount of $maxRetries"
 
             try {
-              vcpkg install wxwidgets:x64-windows-static boost-regex:x64-windows-static hunspell:x64-windows-static
+              vcpkg install wxwidgets:x64-windows-static boost-regex:x64-windows-static boost-smart-ptr:x64-windows-static hunspell:x64-windows-static
               $success = $true
             } catch {
               Write-Host "Attempt $retryCount failed: $_"

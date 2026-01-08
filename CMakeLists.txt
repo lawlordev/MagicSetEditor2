@@ -75,7 +75,7 @@ if(WIN32)
   add_executable(mse3-cli)
   target_sources(mse3-cli PRIVATE src/cli/win32_cli_wrapper.cpp)
   add_custom_command(TARGET mse3-cli POST_BUILD COMMAND
-    ${CMAKE_COMMAND} -E copy "${PROJECT_BINARY_DIR}/mse3-cli.exe" "${PROJECT_BINARY_DIR}/mse3.com"
+    ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:mse3-cli>" "$<TARGET_FILE_DIR:mse3-cli>/mse3.com"
   )
 endif()
 
