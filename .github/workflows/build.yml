@@ -81,6 +81,24 @@ jobs:
           echo "Verifying executable dependencies:"
           otool -L "$EXECUTABLE"
 
+      - name: Code sign app bundle
+        run: |
+          APP_PATH="build/mse3.app"
+
+          # Ad-hoc sign all frameworks first
+          for DYLIB in "$APP_PATH/Contents/Frameworks"/*.dylib; do
+            codesign --force --sign - "$DYLIB"
+          done
+
+          # Then sign the main executable
+          codesign --force --sign - "$APP_PATH/Contents/MacOS/mse3"
+
+          # Finally sign the entire app bundle
+          codesign --force --deep --sign - "$APP_PATH"
+
+          echo "Verifying code signature:"
+          codesign --verify --verbose "$APP_PATH"
+
       - name: Create DMG
         run: |
           # Create a temporary directory for DMG contents
