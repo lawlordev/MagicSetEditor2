@@ -18,6 +18,7 @@
 #include <cli/cli_main.hpp>
 #include <cli/text_io_handler.hpp>
 #include <gui/welcome_window.hpp>
+#include <gui/onboarding_window.hpp>
 #include <gui/update_checker.hpp>
 #include <gui/packages_window.hpp>
 #include <gui/set/window.hpp>
@@ -80,12 +81,7 @@ void nag_about_ascii_version() {
 
 int MSE::OnRun() {
   try {
-    #ifdef __WXMSW__
-      SetAppName(_("Magic Set Editor"));
-    #else
-      // Platform friendly appname
-      SetAppName(_("magicseteditor"));
-    #endif
+    SetAppName(_("MSE3"));
     wxInitAllImageHandlers();
     wxFileSystem::AddHandler(new wxInternetFSHandler); // needed for update checker
     wxSocketBase::Initialize();
@@ -94,6 +90,14 @@ int MSE::OnRun() {
     cli.init();
     package_manager.init();
     settings.read();
+
+    // If data is not available, show onboarding window to download it
+    // Skip locale loading since no packages exist yet
+    if (!package_manager.hasData()) {
+      (new OnboardingWindow())->Show();
+      return runGUI();
+    }
+
     the_locale = Locale::byName(settings.locale);
     nag_about_ascii_version();
     
@@ -156,7 +160,7 @@ int MSE::OnRun() {
           return EXIT_SUCCESS;
         } else if (arg == _("--help") || arg == _("-?")) {
           // command line help
-          cli << _("Magic Set Editor\n\n");
+          cli << _("MSE3\n\n");
           cli << _("Usage: ") << BRIGHT << argv[0] << NORMAL << _(" [") << PARAM << _("OPTIONS") << NORMAL << _("]");
           cli << _("\n\n  no options");
           cli << _("\n         \tStart the MSE user interface showing the welcome window.");
@@ -210,7 +214,7 @@ int MSE::OnRun() {
           return EXIT_SUCCESS;
         } else if (arg == _("--version") || arg == _("-v") || arg == _("-V")) {
           // dump version
-          cli << _("Magic Set Editor\n");
+          cli << _("MSE3\n");
           cli << _("Version ") << app_version.toString() << version_suffix << ENDL;
           cli.flush();
           return EXIT_SUCCESS;
@@ -274,8 +278,8 @@ int MSE::OnRun() {
       }
     }
     
-    // no command line arguments, or error, show welcome window
-    (new WelcomeWindow())->Show();
+    // no command line arguments, or error, show onboarding then welcome window
+    (new OnboardingWindow())->Show();
     return runGUI();
     
   } CATCH_ALL_ERRORS(true);

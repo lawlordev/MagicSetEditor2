@@ -44,7 +44,7 @@ private:
   void onOpenLast    (wxCommandEvent&);
   void onCheckUpdates(wxCommandEvent&);
 //  void onIdle    (wxIdleEvent& ev);
-  
+
   /// Close the welcome window, and show the given set
   void close(const SetP& set);
 };

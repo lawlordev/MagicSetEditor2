@@ -201,6 +201,7 @@ public:
   CheckUpdates check_updates;
   bool   check_updates_all; ///< Check updates of all packages, not just the program
   String website_url;
+  DateTime update_postponed_until; ///< Time until which updates are postponed
   
   // --------------------------------------------------- : Installation settings
   InstallType install_type;

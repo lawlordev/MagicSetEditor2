@@ -8,6 +8,7 @@
 
 #include <util/prec.hpp>
 #include <gui/new_window.hpp>
+#include <gui/new_set_wizard.hpp>
 #include <gui/control/gallery_list.hpp>
 #include <gui/control/package_list.hpp>
 #include <data/game.hpp>
@@ -20,9 +21,8 @@
 // ----------------------------------------------------------------------------- : NewSetWindow
 
 SetP new_set_window(Window* parent) {
-  NewSetWindow wnd(parent);
-  wnd.ShowModal();
-  return wnd.set;
+  // Use the new multi-step wizard
+  return new_set_wizard(parent);
 }
 
 NewSetWindow::NewSetWindow(Window* parent)

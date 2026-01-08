@@ -18,6 +18,7 @@
 #include <data/format/formats.hpp>
 #include <wx/dcbuffer.h>
 #include <wx/filename.h>
+#include <wx/msgdlg.h>
 
 // 2007-02-06: New HoverButton, hopefully this on works on GTK
 #define USE_HOVERBUTTON
@@ -25,41 +26,66 @@
 // ----------------------------------------------------------------------------- : WelcomeWindow
 
 WelcomeWindow::WelcomeWindow()
-  : wxFrame(nullptr, wxID_ANY, _TITLE_("magic set editor"), wxDefaultPosition, wxSize(520,380), wxDEFAULT_DIALOG_STYLE | wxTAB_TRAVERSAL | wxCLIP_CHILDREN )
-  , logo (load_resource_image(_("about")))
+  : wxFrame(nullptr, wxID_ANY, _TITLE_("magic set editor"), wxDefaultPosition, wxSize(540, 460), wxDEFAULT_DIALOG_STYLE | wxTAB_TRAVERSAL | wxCLIP_CHILDREN)
+  , logo(load_resource_image(_("about")))
 {
   SetIcon(load_resource_icon(_("app")));
-
   SetBackgroundStyle(wxBG_STYLE_PAINT);
 
-  // init controls
-  wxControl* new_set   = new HoverButtonExt(this, ID_FILE_NEW,           load_resource_image(_("welcome_new")),     _BUTTON_("new set"),       _HELP_("new set"));
-  wxControl* open_set  = new HoverButtonExt(this, ID_FILE_OPEN,          load_resource_image(_("welcome_open")),    _BUTTON_("open set"),      _HELP_("open set"));
+  // Scale the logo to fit nicely (target ~380px wide for compact look)
+  if (logo.Ok() && logo.GetWidth() > 380) {
+    double scale = 380.0 / logo.GetWidth();
+    logo = wxBitmap(logo.ConvertToImage().Scale(
+      static_cast<int>(logo.GetWidth() * scale),
+      static_cast<int>(logo.GetHeight() * scale),
+      wxIMAGE_QUALITY_HIGH
+    ));
+  }
+
+  // Scale icons to 48x48 for balanced look
+  auto scaleIcon = [](const wxImage& img) -> wxImage {
+    if (img.Ok() && (img.GetWidth() > 48 || img.GetHeight() > 48)) {
+      return img.Scale(48, 48, wxIMAGE_QUALITY_HIGH);
+    }
+    return img;
+  };
+
+  // init controls with scaled icons
+  wxControl* new_set   = new HoverButtonExt(this, ID_FILE_NEW,           scaleIcon(load_resource_image(_("welcome_new"))),     _BUTTON_("new set"),       _HELP_("new set"));
+  wxControl* open_set  = new HoverButtonExt(this, ID_FILE_OPEN,          scaleIcon(load_resource_image(_("welcome_open"))),    _BUTTON_("open set"),      _HELP_("open set"));
   #if !USE_OLD_STYLE_UPDATE_CHECKER
-  wxControl* updates   = new HoverButtonExt(this, ID_FILE_CHECK_UPDATES, load_resource_image(_("welcome_updates")), _BUTTON_("check updates"), _HELP_("check updates"));
+  wxControl* updates   = new HoverButtonExt(this, ID_FILE_CHECK_UPDATES, scaleIcon(load_resource_image(_("welcome_updates"))), _BUTTON_("check updates"), _HELP_("check updates"));
   #endif
   wxControl* open_last = nullptr;
   if (!settings.recent_sets.empty()) {
     const String& filename = settings.recent_sets.front();
     if (wxFileName::FileExists(filename) || wxFileName::DirExists(filename + _("/"))) {
       wxFileName n(filename);
-      open_last = new HoverButtonExt(this, ID_FILE_RECENT, load_resource_image(_("welcome_last")), _BUTTON_("last opened set"), _HELP_1_("last opened set", n.GetName()));
+      open_last = new HoverButtonExt(this, ID_FILE_RECENT, scaleIcon(load_resource_image(_("welcome_last"))), _BUTTON_("last opened set"), _HELP_1_("last opened set", n.GetName()));
     }
   }
 
-  wxSizer* s1 = new wxBoxSizer(wxHORIZONTAL);
-  s1->AddSpacer(25);
-    wxSizer* s2 = new wxBoxSizer(wxVERTICAL);
-    s2->AddSpacer(100);
-    s2->Add(new_set,   0, wxALL, 2);
-    s2->Add(open_set,  0, wxALL, 2);
-    #if !USE_OLD_STYLE_UPDATE_CHECKER
-    s2->Add(updates,   0, wxALL, 2);
-    #endif
-    if (open_last) s2->Add(open_last, 0, wxALL, 2);
-    s2->AddStretchSpacer();
-  s1->Add(s2);
-  SetSizer(s1);
+  // Modern centered layout
+  wxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
+
+  // Space for logo area + red line + padding (drawn in onPaint)
+  int logoHeight = logo.Ok() ? logo.GetHeight() : 80;
+  mainSizer->AddSpacer(logoHeight + 75); // extra space after red line
+
+  // Centered button container
+  wxSizer* buttonSizer = new wxBoxSizer(wxVERTICAL);
+  buttonSizer->Add(new_set,  0, wxALIGN_CENTER | wxBOTTOM, 10);
+  buttonSizer->Add(open_set, 0, wxALIGN_CENTER | wxBOTTOM, 10);
+  #if !USE_OLD_STYLE_UPDATE_CHECKER
+  buttonSizer->Add(updates,  0, wxALIGN_CENTER | wxBOTTOM, 10);
+  #endif
+  if (open_last) buttonSizer->Add(open_last, 0, wxALIGN_CENTER | wxBOTTOM, 10);
+
+  mainSizer->Add(buttonSizer, 0, wxALIGN_CENTER);
+  mainSizer->AddStretchSpacer();
+
+  SetSizer(mainSizer);
+  CentreOnScreen();
 }
 
 void WelcomeWindow::onPaint(wxPaintEvent&) {
@@ -69,22 +95,35 @@ void WelcomeWindow::onPaint(wxPaintEvent&) {
 
 void WelcomeWindow::draw(DC& dc) {
   wxSize ws = GetClientSize();
-  // draw background
-  dc.SetPen  (*wxTRANSPARENT_PEN);
-  dc.SetBrush(Color(240,247,255));
+
+  // Pure white background
+  dc.SetPen(*wxTRANSPARENT_PEN);
+  dc.SetBrush(Color(255, 255, 255));
   dc.DrawRectangle(0, 0, ws.GetWidth(), ws.GetHeight());
-  // draw logo
-  dc.DrawBitmap(logo,  (ws.GetWidth() -  logo.GetWidth()) / 2, 5);
+
+  // Red accent line under logo area
+  int lineY = logo.Ok() ? logo.GetHeight() + 50 : 120;
+  dc.SetPen(wxPen(Color(200, 60, 60), 2));
+  dc.DrawLine(0, lineY, ws.GetWidth(), lineY);
+
+  // Draw logo centered in header
+  if (logo.Ok()) {
+    int logoX = (ws.GetWidth() - logo.GetWidth()) / 2;
+    int logoY = 25;
+    dc.DrawBitmap(logo, logoX, logoY);
+  }
+
   #if USE_BETA_LOGO
-    dc.DrawBitmap(logo2,  ws.GetWidth() - logo2.GetWidth(),      ws.GetHeight() - logo2.GetHeight());
+    dc.DrawBitmap(logo2, ws.GetWidth() - logo2.GetWidth(), ws.GetHeight() - logo2.GetHeight());
   #endif
-  // draw version number
-  dc.SetFont(wxFont(8, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, _("Arial")));
-  dc.SetTextForeground(Color(0,126,176));
-  int tw,th;
-  String version_string = _("version ") + app_version.toString() + version_suffix;
-  dc.GetTextExtent(version_string,&tw,&th);
-  dc.DrawText(version_string, 4, ws.GetHeight()-th-4);
+
+  // Version number at bottom center - subtle
+  dc.SetFont(wxFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, _("Beleren")));
+  dc.SetTextForeground(Color(160, 165, 175));
+  String version_string = _("Version ") + app_version.toString() + version_suffix;
+  int tw, th;
+  dc.GetTextExtent(version_string, &tw, &th);
+  dc.DrawText(version_string, (ws.GetWidth() - tw) / 2, ws.GetHeight() - th - 14);
 }
 
 void WelcomeWindow::onOpenSet(wxCommandEvent&) {
@@ -142,23 +181,72 @@ END_EVENT_TABLE  ()
 // ----------------------------------------------------------------------------- : Hover button with label
 
 HoverButtonExt::HoverButtonExt(Window* parent, int id, const wxImage& icon, const String& label, const String& sub_label)
-  : HoverButton(parent, id, _("btn"))
+  : HoverButton(parent, id, _("btn"), Color(255, 255, 255))
   , icon(icon)
   , label(label), sub_label(sub_label)
-  , font_large(14, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, _("Arial"))
-  , font_small(8,  wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, _("Arial"))
-{}
+  // Use Beleren for both labels
+  , font_large(18, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false, _("Beleren"))
+  , font_small(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false, _("Beleren"))
+{
+  // Wider buttons for better clickability
+  SetMinSize(wxSize(380, 72));
+}
 
 void HoverButtonExt::draw(DC& dc) {
-  // draw button
-  HoverButton::draw(dc);
+  wxSize ws = GetClientSize();
   int d = drawDelta();
-  // icon
-  if (icon.Ok()) dc.DrawBitmap(icon, d+7, d+7);
-  // text
-  dc.SetTextForeground(*wxBLACK);
+
+  // Clear background
+  dc.SetPen(*wxTRANSPARENT_PEN);
+  dc.SetBrush(Color(255, 255, 255));
+  dc.DrawRectangle(0, 0, ws.GetWidth(), ws.GetHeight());
+
+  // Button colors - pure white with red border on hover
+  Color bgColor, borderColor;
+  bool isPressed = (mouse_down && hover) || key_down;
+
+  if (isPressed) {
+    bgColor = Color(255, 255, 255);
+    borderColor = Color(180, 60, 60);
+  } else if (hover) {
+    bgColor = Color(255, 255, 255);
+    borderColor = Color(200, 80, 80);
+  } else {
+    bgColor = Color(255, 255, 255);
+    borderColor = Color(220, 222, 228);
+  }
+
+  // Subtle shadow when not pressed
+  if (!isPressed) {
+    dc.SetPen(*wxTRANSPARENT_PEN);
+    dc.SetBrush(Color(0, 0, 0, 12));
+    dc.DrawRoundedRectangle(2, 3, ws.GetWidth() - 4, ws.GetHeight() - 4, 8);
+  }
+
+  // Main button background
+  dc.SetPen(wxPen(borderColor, 1));
+  dc.SetBrush(wxBrush(bgColor));
+  dc.DrawRoundedRectangle(1 + d, 1 + d, ws.GetWidth() - 2, ws.GetHeight() - 2, 8);
+
+
+  // Draw icon (48x48, vertically centered)
+  int iconSize = icon.Ok() ? icon.GetWidth() : 48;
+  int iconX = 20 + d;
+  int iconY = (ws.GetHeight() - iconSize) / 2 + d;
+  if (icon.Ok()) dc.DrawBitmap(icon, iconX, iconY);
+
+  // Text positioning
+  int textX = iconX + iconSize + 16;
+  int centerY = ws.GetHeight() / 2;
+
+  // Main label
   dc.SetFont(font_large);
-  dc.DrawText(label, d+44, d+7);
+  dc.SetTextForeground(Color(35, 40, 50));
+  int labelH = dc.GetTextExtent(label).GetHeight();
+  dc.DrawText(label, textX, centerY - labelH - 1 + d);
+
+  // Sub label
   dc.SetFont(font_small);
-  dc.DrawText(sub_label, d+45, d+28);
+  dc.SetTextForeground(Color(120, 125, 140));
+  dc.DrawText(sub_label, textX, centerY + 3 + d);
 }

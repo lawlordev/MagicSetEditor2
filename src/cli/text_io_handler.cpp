@@ -104,7 +104,7 @@ void TextIOHandler::flush() {
     fflush(stream);
   } else if (!buffer.empty()) {
     // Show message box
-    wxMessageBox(buffer, _("Magic Set Editor"), wxOK | wxICON_INFORMATION);
+    wxMessageBox(buffer, _("MSE3"), wxOK | wxICON_INFORMATION);
     buffer.clear();
   }
 }

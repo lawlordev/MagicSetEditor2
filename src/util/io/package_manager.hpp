@@ -110,6 +110,10 @@ class PackageManager {
 public:
   /// Initialize the package manager
   void init();
+  /// Re-initialize after data has been downloaded
+  void reinit();
+  /// Check if data is available (at least one valid package directory)
+  bool hasData() const { return local.valid() || global.valid(); }
   /// Empty the list of packages.
   /** This function MUST be called before the program terminates, otherwise
    *  we could get into fights with pool allocators used by ScriptValues */

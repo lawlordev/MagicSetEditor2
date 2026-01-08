@@ -21,6 +21,10 @@ template <> void GetDefaultMember::handle(const String&       v) { value = to_sc
 template <> void GetDefaultMember::handle(const int&          v) { value = to_script(v); }
 template <> void GetDefaultMember::handle(const unsigned int& v) { value = to_script((int)v); }
 template <> void GetDefaultMember::handle(const uint64_t&     v) { value = to_script((int)v); }
+#if defined(__APPLE__) && defined(__LP64__)
+// On macOS ARM64/x86_64, unsigned long is distinct from uint64_t
+template <> void GetDefaultMember::handle(const unsigned long& v) { value = to_script((int)v); }
+#endif
 template <> void GetDefaultMember::handle(const double&       v) { value = to_script(v); }
 template <> void GetDefaultMember::handle(const bool&         v) { value = to_script(v); }
 template <> void GetDefaultMember::handle(const tribool&      v) { value = to_script((bool)v); }

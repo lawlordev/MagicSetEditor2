@@ -67,7 +67,7 @@ void Installer::installFrom(const String& filename, bool message_on_success, boo
   if (message_on_success) {
     //wxMessageBox(_ERROR_2_("successful install", i.name(), String() << i.packaged.size(), 
     wxMessageBox(String::Format(_("'%s' successfully installed %d package%s."), i.name().c_str(), i.packages.size(), i.packages.size() == 1 ? _("") : _("s")),
-                 _("Magic Set Editor"), wxOK | wxICON_INFORMATION);
+                 _("MSE3"), wxOK | wxICON_INFORMATION);
   }
 }
 
@@ -601,7 +601,7 @@ bool set_package_action(InstallablePackages& packages, const InstallablePackageP
 
 // ----------------------------------------------------------------------------- : MSE package
 
-String mse_package = _("magicseteditor.exe");
+String mse_package = _("mse3.exe");
 
 InstallablePackageP mse_installable_package() {
   PackageVersionP mse_version(new PackageVersion(

@@ -113,7 +113,7 @@ InternalError::InternalError(const String& str)
     _("An internal error occured:\n\n") +
     str + _("\n")
     _("Please save your work (use 'save as' to so you don't overwrite things)\n")
-    _("and restart Magic Set Editor.\n\n")
+    _("and restart MSE3.\n\n")
     _("You should leave a bug report on https://github.com/twanvl/MagicSetEditor2/issues/\n")
     _("Press Ctrl+C to copy this message to the clipboard.")
   )

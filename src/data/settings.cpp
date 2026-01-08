@@ -231,7 +231,15 @@ IndexMap<FieldP,ValueP>& Settings::exportOptionsFor(const ExportTemplate& export
 
 /// Retrieve the directory to use for settings and other data files
 String user_settings_dir() {
+  // Use consistent path across all components (matches package_manager and github_update_checker)
+#if defined(__APPLE__)
+  String dir = wxGetHomeDir() + _("/Library/Application Support/MSE3");
+#elif defined(__WXMSW__)
   String dir = wxStandardPaths::Get().GetUserDataDir();
+#else
+  // Linux
+  String dir = wxGetHomeDir() + _("/.local/share/MSE3");
+#endif
   if (!wxDirExists(dir)) wxMkdir(dir);
   return dir + _("/");
 }
@@ -269,6 +277,7 @@ IMPLEMENT_REFLECTION_NO_SCRIPT(Settings) {
   REFLECT(check_updates_all);
   REFLECT(install_type);
   REFLECT(website_url);
+  REFLECT(update_postponed_until);
   REFLECT(game_settings);
   REFLECT(stylesheet_settings);
   REFLECT(default_stylesheet_settings);

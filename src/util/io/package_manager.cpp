@@ -19,6 +19,22 @@
 #include <wx/stdpaths.h>
 #include <wx/wfstream.h>
 
+// ----------------------------------------------------------------------------- : Helper functions
+
+/// Get the user data directory with consistent naming across the app
+static String getMSEUserDataDir() {
+#if defined(__APPLE__)
+  // Use consistent path: ~/Library/Application Support/MSE3
+  // This matches what github_update_checker uses
+  return wxGetHomeDir() + _("/Library/Application Support/MSE3");
+#elif defined(__WXMSW__)
+  return wxStandardPaths::Get().GetUserDataDir();
+#else
+  // Linux: ~/.local/share/MSE3
+  return wxGetHomeDir() + _("/.local/share/MSE3");
+#endif
+}
+
 // ----------------------------------------------------------------------------- : PackageManager : in memory
 
 PackageManager package_manager;
@@ -27,10 +43,14 @@ PackageManager package_manager;
 void PackageManager::init() {
   local.init(true);
   global.init(false);
-  if (!(local.valid() || global.valid()))
-    throw Error(_("The MSE data files can not be found, there should be a directory called 'data' with these files. ")
-                _("The expected place to find it in was either ") + wxStandardPaths::Get().GetDataDir() + _(" or ") +
-                wxStandardPaths::Get().GetUserDataDir());
+  // Don't throw error if data is missing - the onboarding window will handle downloading it
+  // The app can still start and show the setup wizard
+}
+void PackageManager::reinit() {
+  // Re-initialize after data has been downloaded
+  reset();
+  local.init(true);
+  global.init(false);
 }
 void PackageManager::destroy() {
   loaded_packages.clear();
@@ -202,10 +222,37 @@ bool PackageManager::install(const InstallablePackage& package) {
 void PackageDirectory::init(bool local) {
   is_local = local;
   if (local) {
-    init(wxStandardPaths::Get().GetUserDataDir() + _("/data"));
+    String userDir = getMSEUserDataDir();
+    // Create directory if it doesn't exist
+    if (!wxDirExists(userDir)) {
+      wxFileName::Mkdir(userDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
+    }
+    init(userDir + _("/data"));
   } else {
     // determine data directory
     String dir = wxStandardPaths::Get().GetDataDir();
+
+#if defined(__APPLE__)
+    // For macOS app bundles, don't walk up parent directories looking for data
+    // The game templates should be in ~/Library/Application Support/MSE3/data
+    // (downloaded via the update checker), not bundled with the app
+    wxFileName bundlePath(dir);
+    wxArrayString dirs = bundlePath.GetDirs();
+    bool isAppBundle = false;
+    for (size_t i = 0; i < dirs.GetCount(); i++) {
+      if (dirs[i].EndsWith(_(".app"))) {
+        isAppBundle = true;
+        break;
+      }
+    }
+    if (isAppBundle) {
+      // For bundles, only use the standard data directory, don't walk up
+      // Game templates are in UserDataDir, not bundled
+      init(dir + _("/data"));
+      return;
+    }
+#endif
+
     // check if this is the actual data directory, especially during debugging,
     // the data may be higher up:
     //  exe path  = mse/build/debug/mse.exe
