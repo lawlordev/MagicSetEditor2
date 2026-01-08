@@ -116,7 +116,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: '67e34200c5689460eaff00c3c1e62b9dab46b76a'  # 2025.01.03 (latest)
+          vcpkgGitCommitId: '13596c42018128edb32083a267c0c1ddfc935c1b'  # 2025.01.08 (latest)
 
       - name: Install dependencies (with retry)
         shell: pwsh
