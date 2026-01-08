@@ -1,0 +1,163 @@
+name: Build MSE3
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install wxwidgets boost hunspell
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+
+      - name: Bundle dylibs into app
+        run: |
+          APP_PATH="build/mse3.app"
+          FRAMEWORKS_DIR="$APP_PATH/Contents/Frameworks"
+          EXECUTABLE="$APP_PATH/Contents/MacOS/mse3"
+
+          mkdir -p "$FRAMEWORKS_DIR"
+
+          # Get list of non-system dylibs
+          DYLIBS=$(otool -L "$EXECUTABLE" | grep -E '/opt/homebrew|/usr/local' | awk '{print $1}')
+
+          # Copy each dylib and fix paths
+          for DYLIB in $DYLIBS; do
+            DYLIB_NAME=$(basename "$DYLIB")
+            echo "Bundling $DYLIB_NAME..."
+            cp "$DYLIB" "$FRAMEWORKS_DIR/"
+            chmod 644 "$FRAMEWORKS_DIR/$DYLIB_NAME"
+
+            # Update the executable to look in Frameworks
+            install_name_tool -change "$DYLIB" "@executable_path/../Frameworks/$DYLIB_NAME" "$EXECUTABLE"
+
+            # Also check if this dylib has its own dependencies
+            SUB_DYLIBS=$(otool -L "$FRAMEWORKS_DIR/$DYLIB_NAME" | grep -E '/opt/homebrew|/usr/local' | awk '{print $1}')
+            for SUB_DYLIB in $SUB_DYLIBS; do
+              SUB_NAME=$(basename "$SUB_DYLIB")
+              if [ ! -f "$FRAMEWORKS_DIR/$SUB_NAME" ]; then
+                echo "  Also bundling dependency $SUB_NAME..."
+                cp "$SUB_DYLIB" "$FRAMEWORKS_DIR/"
+                chmod 644 "$FRAMEWORKS_DIR/$SUB_NAME"
+              fi
+              install_name_tool -change "$SUB_DYLIB" "@executable_path/../Frameworks/$SUB_NAME" "$FRAMEWORKS_DIR/$DYLIB_NAME"
+            done
+
+            # Fix the dylib's own ID
+            install_name_tool -id "@executable_path/../Frameworks/$DYLIB_NAME" "$FRAMEWORKS_DIR/$DYLIB_NAME"
+          done
+
+          # Second pass: fix all cross-references between bundled dylibs
+          for DYLIB_FILE in "$FRAMEWORKS_DIR"/*.dylib; do
+            DYLIB_NAME=$(basename "$DYLIB_FILE")
+            for OTHER_DYLIB in "$FRAMEWORKS_DIR"/*.dylib; do
+              OTHER_NAME=$(basename "$OTHER_DYLIB")
+              # Try to fix any remaining homebrew paths
+              install_name_tool -change "/opt/homebrew/opt/wxwidgets/lib/$OTHER_NAME" "@executable_path/../Frameworks/$OTHER_NAME" "$DYLIB_FILE" 2>/dev/null || true
+              install_name_tool -change "/opt/homebrew/Cellar/wxwidgets/3.2.4/lib/$OTHER_NAME" "@executable_path/../Frameworks/$OTHER_NAME" "$DYLIB_FILE" 2>/dev/null || true
+            done
+          done
+
+          echo "Bundled libraries:"
+          ls -la "$FRAMEWORKS_DIR"
+
+          echo "Verifying executable dependencies:"
+          otool -L "$EXECUTABLE"
+
+      - name: Create DMG
+        run: |
+          # Create a temporary directory for DMG contents
+          mkdir -p dmg_contents
+          cp -R build/mse3.app dmg_contents/
+
+          # Create DMG
+          hdiutil create -volname "MSE3" -srcfolder dmg_contents -ov -format UDZO MSE3-macOS.dmg
+
+          ls -la MSE3-macOS.dmg
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MSE3-macOS
+          path: MSE3-macOS.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: '01f602195983451bc83e72f4214af2cbc495aa94'  # 2024.05.24
+
+      - name: Install dependencies
+        run: |
+          vcpkg install wxwidgets:x64-windows-static boost-regex:x64-windows-static hunspell:x64-windows-static
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static
+
+      - name: Build
+        run: |
+          cmake --build build --config Release
+
+      - name: Package Windows build
+        run: |
+          mkdir MSE3-Windows
+          cp build/Release/mse3.exe MSE3-Windows/
+          cp -r resource MSE3-Windows/
+
+          # Create zip
+          Compress-Archive -Path MSE3-Windows -DestinationPath MSE3-Windows.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MSE3-Windows
+          path: MSE3-Windows.zip
+
+  # Create a release when a tag is pushed
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MSE3-macOS
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MSE3-Windows
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            MSE3-macOS.dmg
+            MSE3-Windows.zip
+          generate_release_notes: true
